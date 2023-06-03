@@ -472,9 +472,9 @@ my_happy_and_energetic_songs <- get_recommendations(
 
 ```{r}
 .playlist_id <- create_playlist(
-    user_id     = .USER_ID,
-    name        = str_glue("My Happy and Energetic Songs ({today()})"),
-    description = "Generated with R!",
+    user_id       = .USER_ID,
+    name          = str_glue("My Happy and Energetic Songs ({today()})"),
+    description   = "Generated with R!",
     authorization = get_spotify_authorization_code(
         client_id     = .SPOTIFY_CLIENT_ID,
         client_secret = .SPOTIFY_CLIENT_SECRET,
