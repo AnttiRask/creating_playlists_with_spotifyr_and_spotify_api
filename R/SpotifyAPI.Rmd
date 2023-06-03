@@ -1,0 +1,498 @@
+---
+title: "SpotifyAPI (from SpotifyR Workshop at R User Group Finland)"
+author: "Marc Eixarch (orig.), modified by Antti Rask"
+date: "2023-03-30"
+output: html_document
+---
+
+Testing the Spotify API using the [{spotifyr}](https://github.com/charlie86/spotifyr) package created by Charlie Thompson and currently maintained by Daniel Antal.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Load libraries
+
+```{r, warning=FALSE}
+library(conflicted)
+    conflicts_prefer(dplyr::filter)
+library(extrafont)
+library(ggExtra)
+library(ggrepel)
+library(spotifyr)
+library(tidyverse)
+
+source("secret.R")
+```
+
+## Getting the SpotifyAPI Access Token
+
+```{r}
+Sys.setenv(SPOTIFY_CLIENT_ID     = .SPOTIFY_CLIENT_ID)
+Sys.setenv(SPOTIFY_CLIENT_SECRET = .SPOTIFY_CLIENT_SECRET)
+
+access_token <- get_spotify_access_token()
+```
+
+## Part 1
+
+### Getting my playlists
+
+```{r}
+my_playlists <- get_my_playlists(
+    limit         = 50,
+    authorization = get_spotify_authorization_code(
+        client_id     = .SPOTIFY_CLIENT_ID,
+        client_secret = .SPOTIFY_CLIENT_SECRET,
+        scope         = "playlist-read-private"
+    )
+) %>% 
+    as_tibble()
+
+my_playlists %>% 
+    select(name, owner.display_name, tracks.total)
+```
+
+### Checking categories
+
+```{r}
+get_categories() %>% pull(name)
+```
+
+### Getting my top artists
+
+```{r}
+my_artists <- get_my_top_artists_or_tracks(
+    limit = 2,
+    authorization = get_spotify_authorization_code(
+        client_id     = .SPOTIFY_CLIENT_ID,
+        client_secret = .SPOTIFY_CLIENT_SECRET,
+        scope         = "user-top-read"
+    )
+) %>% 
+    pull(name)
+
+my_artists
+```
+
+### Getting the audio features for the top artists
+
+```{r}
+my_artists_track_features <- bind_rows(
+    map(
+        my_artists,
+        get_artist_audio_features,
+        market = "US"
+    )
+) %>% 
+    select(
+        artist_id,
+        artist_name,
+        track_id,
+        track_name,
+        album_name,
+        album_release_year,
+        duration_ms,
+        tempo,
+        acousticness,
+        danceability,
+        energy,
+        instrumentalness,
+        liveness,
+        loudness,
+        speechiness,
+        valence
+    ) %>%
+    as_tibble()
+
+my_artists_track_features
+```
+
+### Getting summary statistics
+
+```{r}
+my_album_summary_stats <- my_artists_track_features %>%
+    summarise(
+        across(where(is.numeric), mean),
+        tracks = n(),
+        .by    = c(artist_name, album_release_year, album_name)
+    )
+
+my_album_summary_stats
+```
+
+### Live Albums
+
+#### Checking for Live Albums
+
+```{r}
+my_album_summary_stats %>% 
+    filter(liveness > 0.29) %>% 
+    select(artist_name, album_release_year, album_name, liveness)
+```
+
+#### Getting rid of the Live Albums
+
+```{r}
+my_artists_track_features_without_live <- my_artists_track_features %>%
+    filter(liveness < 0.29)
+
+my_album_summary_stats_without_live    <- my_album_summary_stats %>% 
+    filter(liveness < 0.29)
+
+my_artists_track_features_without_live
+my_album_summary_stats_without_live
+```
+
+### Special Editions
+
+#### Checking for Special Editions
+
+```{r}
+my_album_summary_stats_without_live %>%
+    filter(str_detect(tolower(album_name), "edition") == TRUE)
+```
+
+#### Getting rid of the Special Editions
+
+```{r}
+my_artists_track_features_without_special <-my_artists_track_features_without_live %>%
+    filter(str_detect(tolower(album_name), "edition") == FALSE)
+
+my_album_summary_stats_without_special <- my_album_summary_stats_without_live %>%
+    filter(str_detect(tolower(album_name), "edition") == FALSE)
+
+my_artists_track_features_without_special
+my_album_summary_stats_without_special
+```
+
+### Insights
+
+#### Summary of the average album Energy
+
+```{r}
+my_album_summary_stats_without_special %>%
+    ggplot(aes(album_release_year, energy, color = artist_name)) + 
+    geom_line() +
+    geom_point() +
+    theme_classic()
+```
+
+#### Summary of all the features
+
+```{r}
+my_album_summary_stats_without_special %>%
+    mutate(
+        album_number = row_number(album_release_year),
+        .by = artist_name
+    ) %>%
+    pivot_longer(
+        cols      = !c(artist_name, album_release_year, album_name, album_number),
+        names_to  = "feature",
+        values_to = "score"
+    ) %>% 
+    filter(
+        feature %in% c(
+            "acousticness",
+            "danceability",
+            "energy",
+            "instrumentalness",
+            "speechiness",
+            "valence"
+        )
+    ) %>% 
+    ggplot(aes(album_number, score, color = artist_name)) + 
+    geom_line() +
+    geom_point() +
+    facet_wrap(vars(feature), ncol = 2) +
+    theme_classic()
+```
+
+#### Energy vs. Valence
+
+```{r}
+p <- my_artists_track_features_without_special %>%
+    ggplot(aes(energy, valence, color = artist_name)) +
+    geom_point() +
+    geom_hline(yintercept = 0.5, color = "grey", linetype = "dashed") +
+    geom_vline(xintercept = 0.5, color = "grey", linetype = "dashed") +
+    theme_classic() +
+    theme(legend.position = "bottom")
+
+ggMarginal(p, type = "density", groupColour = TRUE, groupFill = TRUE)
+```
+
+#### Top tracks, annotated
+
+```{r}
+top_tracks <- bind_rows(
+    map(unique(my_artists_track_features$artist_id), get_artist_top_tracks)
+)
+
+top_tracks %>% 
+    select(id, popularity) %>%
+    right_join(
+        my_artists_track_features,
+        by = join_by(id == track_id)
+    ) %>%
+    mutate(
+        rank_top_song = row_number(desc(popularity)),
+        .by = artist_name
+    ) %>%
+    ggplot(aes(energy, valence, color = artist_name)) +
+    geom_point() +
+    geom_label_repel(
+        aes(
+            label = case_when(
+                rank_top_song <= 3 ~ track_name,
+                TRUE ~ NA_character_
+            )
+        )
+    ) + 
+    geom_hline(yintercept = 0.5,  color = "grey", linetype = "dashed") +
+    geom_vline(xintercept = 0.5,  color = "grey", linetype = "dashed") +
+    annotate("text", 0.25 / 2, 1, label = "Hopeful Ballads",  fontface = "italic") +
+    annotate("text", 1.75 / 2, 1, label = "Vibrant Cheerful", fontface = "italic") +
+    annotate("text", 1.75 / 2, 0, label = "Vibrant Enraged",  fontface = "italic") +
+    annotate("text", 0.25 / 2, 0, label = "Sad Ballads",      fontface = "italic") +
+    labs(
+        x     = "Energy",
+        y     = "Valence",
+        color = "Artist",
+        title = "Songs mood"
+    ) +
+    theme_classic()
+```
+
+### Spotify Theme
+
+Based on the [Monokai theme](https://github.com/datarootsio/artyfarty)
+
+#### Creating the Spotify Theme
+
+```{r}
+spotify_colors <- list(
+    dark_green  = "#1DB954",
+    light_green = "#1ed760",
+    black       = "#191414",
+    light_grey  = "#b3b3b3",
+    white       = "#FFFFFF"
+)
+
+theme_spotify <- function(){
+    color.background = spotify_colors$black
+    color.grid.major = spotify_colors$white
+    color.text       = spotify_colors$dark_green
+    color.text.2     = spotify_colors$light_green
+    color.axis       = spotify_colors$white
+    
+    theme_bw(base_size = 13, base_family = "Gotham") +
+        
+        theme(
+            # Axis
+            axis.line.x  = element_line(color = color.grid.major, linewidth = 1),
+            axis.line.y  = element_line(color = color.grid.major, linewidth = 1),
+            axis.text.x  = element_text(size  = rel(0.95), color = color.text),
+            axis.text.y  = element_text(size  = rel(0.95), color = color.text),
+            axis.ticks   = element_line(color = NA),
+            axis.title.x = element_text(size  = rel(1), color = color.text, vjust = 0),
+            axis.title.y = element_text(size  = rel(1), color = color.text, vjust = 1.25),
+            
+            # Legend
+            legend.background = element_rect(fill  = color.background),
+            legend.key        = element_rect(fill  = color.background, color = NA),
+            legend.text       = element_text(size  = rel(0.8), color = color.text.2),
+            legend.title      = element_text(color = color.text, face = "bold"),
+            
+            # Panel
+            panel.background   = element_rect(
+                fill  = color.background,
+                color = color.background
+            ),
+            panel.border       = element_rect(color = color.background),
+            panel.grid.major   = element_line(
+                color     = color.grid.major,
+                linewidth = 0.4,
+                linetype  = 2
+            ),
+            panel.grid.major.x = element_blank(),
+            panel.grid.minor   = element_blank(),
+            
+            # Plot
+            plot.background = element_rect(fill = color.background, color = color.background),
+            plot.title      = element_text(
+                color = color.text,
+                size  = rel(1.2),
+                hjust = 0.5,
+                face  = "bold"
+            )
+        )
+}
+
+monokai_palette <- c(
+    "#F92672",
+    "#FD971F",
+    "#F4BF75",
+    "#A6E22E",
+    "#A1EFE4",
+    "#66D9EF",
+    "#AE81FF",
+    "#CC6633"
+)
+```
+
+#### Using the Spotify Theme
+
+```{r}
+my_artists_track_features %>% 
+    pivot_longer(
+        cols = !c(
+            track_name,
+            artist_name,
+            album_release_year,
+            album_name,
+            track_id,
+            artist_id
+        ),
+        names_to  = "feature",
+        values_to = "score"
+    ) %>% 
+    filter(
+        feature %in% c(
+            "danceability",
+            "energy",
+            "valence"
+        )
+    ) %>%
+    ggplot(aes(feature %>% str_to_title(), score, color = artist_name)) +
+    geom_boxplot(
+        fill      = spotify_colors$black,
+        linewidth = 1
+    ) +
+    labs(
+        color = "Artist",
+        title = "Artists' Average Scores on Music Features",
+        x     = NULL,
+        y     = "Score"
+    ) +
+    scale_color_manual(values = monokai_palette) +
+    theme_spotify()
+```
+
+## Part 2
+
+### Creating customised recommended Playlists
+
+#### Finding out my top artists
+
+```{r}
+my_top_artists <- get_my_top_artists_or_tracks(
+    type          = "artists", 
+    limit         = 50,            # the maximum
+    time_range    = "medium_term", # about 6 months history,
+    authorization = get_spotify_authorization_code(
+        client_id     = .SPOTIFY_CLIENT_ID,
+        client_secret = .SPOTIFY_CLIENT_SECRET,
+        scope         = "user-top-read"
+    )
+)
+
+my_top_artists %>%
+    select(name, genres, popularity) %>% 
+    arrange(desc(popularity))
+```
+
+#### Finding out my top genres
+
+```{r}
+my_top_artists %>%
+    unnest(genres) %>% 
+    summarise(
+        artists = n(),
+        .by     = genres
+    ) %>% 
+    arrange(desc(artists)) %>% 
+    head(10) %>%
+    mutate(
+        genres = genres %>% 
+            str_to_title() %>%
+            as_factor() %>%
+            fct_reorder2(genres, artists, .desc = FALSE)
+    ) %>%
+    arrange(artists) %>%
+    ggplot(aes(genres, artists)) +
+    geom_segment(
+        aes(genres, 0, xend = genres, yend = artists),
+        color = spotify_colors$light_green
+    ) +
+    geom_point(size = 3, color = spotify_colors$dark_green) +
+    coord_flip() +
+    labs(
+        title = "My Top 10 Favorite Genres",
+        x     = "Genre",
+        y     = "Number of Artists"
+    ) +
+    theme_spotify() + 
+    theme(
+        axis.line.x      = element_blank(),
+        axis.line.y      = element_blank(),
+        panel.grid.major = element_blank(),
+    )
+```
+
+#### How mainstream is my taste in music?
+
+```{r}
+my_top_artists %>%
+    ggplot(aes(popularity)) + 
+    geom_density(color = spotify_colors$black, fill = spotify_colors$dark_green) +
+    coord_cartesian(xlim = c(0,100)) +
+    labs(
+        x = "Popularity",
+        y = "Density"
+    ) +
+    theme_spotify()
+```
+
+## Part 3
+
+### Creating a playlist
+
+#### Get recommendations based on the chosen attributes and artists
+
+```{r}
+my_happy_and_energetic_songs <- get_recommendations(
+    seed_artists = head(my_top_artists, 5) %>% pull(id),
+    min_energy   = 0.6,
+    min_valence  = 0.6
+)
+```
+
+#### Create an empty playlist
+
+```{r}
+.playlist_id <- create_playlist(
+    user_id     = .USER_ID,
+    name        = str_glue("My Happy and Energetic Songs ({today()})"),
+    description = "Generated with R!",
+    authorization = get_spotify_authorization_code(
+        client_id     = .SPOTIFY_CLIENT_ID,
+        client_secret = .SPOTIFY_CLIENT_SECRET,
+        scope         = "playlist-modify-public"
+    )
+)$id
+```
+
+#### Populate the created playlist
+
+```{r}
+add_tracks_to_playlist(
+  playlist_id   = .playlist_id,
+  uris          = my_happy_and_energetic_songs$id,
+  authorization = get_spotify_authorization_code(
+        client_id     = .SPOTIFY_CLIENT_ID,
+        client_secret = .SPOTIFY_CLIENT_SECRET,
+        scope         = "playlist-modify-public"
+  )
+)
+```
