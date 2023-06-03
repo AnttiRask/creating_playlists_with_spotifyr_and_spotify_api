@@ -1,4 +1,4 @@
-# SpotifyAPI
+# Creating Playlists with {spotifyr} and Spotify API
 
 The code for this repo was originally written by [Marc Eixarch](https://github.com/Marceix) for the [R User Group Finland](https://www.meetup.com/r-user-group-finland/) March 2023 meetup.
 
