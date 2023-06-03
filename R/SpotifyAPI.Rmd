@@ -11,7 +11,7 @@ Testing the Spotify API using the [{spotifyr}](https://github.com/charlie86/spot
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# 1. Load libraries
+# Load libraries
 
 ```{r, warning=FALSE}
 library(conflicted)
