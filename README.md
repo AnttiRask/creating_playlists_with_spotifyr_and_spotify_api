@@ -10,9 +10,11 @@ I've made some minor changes to the code, but my main contribution here was to a
 2) Create secret.R in the R folder
 3) Add these lines (replace the placeholders with your own Spotify keys):
 
+<<<<<<< HEAD
 .SPOTIFY_CLIENT_ID     <- "\\<your Spotify Client ID here\\>"  
 .SPOTIFY_CLIENT_SECRET <- "\\<your Spotify Client Secret here\\>"  
 .USER_ID               <- "\\<your Spotify User Name here\\>"
+>>>>>>> c5bed32f3428db724347ec71ef8a80a2bb703acd
 
 ## Interested about R and other R users and live in (or near) Helsinki?
 
