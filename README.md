@@ -1,6 +1,6 @@
 # SpotifyAPI
 
-The code for this repo was originally written by [Marc Eixarch](https://github.com/Marceix).
+The code for this repo was originally written by [Marc Eixarch](https://github.com/Marceix) for the [R User Group Finland](https://www.meetup.com/r-user-group-finland/) March 2023 meetup.
 
 I've made some minor changes to the code, but my main contribution here was to add the _scopes_ that are nowadays needed to use the Spotify API.
 
@@ -10,6 +10,10 @@ I've made some minor changes to the code, but my main contribution here was to a
 2) Create secret.R in the R folder
 3) Add these lines (replace the placeholders with your own Spotify keys):
 
-.SPOTIFY_CLIENT_ID     <- "<your Spotify Client ID here>"
-.SPOTIFY_CLIENT_SECRET <- "<your Spotify Client Secret here>"
-.USER_ID               <- "<your Spotify User Name here>"
+.SPOTIFY_CLIENT_ID     <- "\\<your Spotify Client ID here\\>"  
+.SPOTIFY_CLIENT_SECRET <- "\\<your Spotify Client Secret here\\>"  
+.USER_ID               <- "\\<your Spotify User Name here\\>"
+
+## Interested about R and other R users and live in (or near) Helsinki?
+
+Join the [R User Group Finland](https://www.meetup.com/r-user-group-finland/) meetup page and come to the next meetup(s)!
