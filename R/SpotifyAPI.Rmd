@@ -34,6 +34,20 @@ Sys.setenv(SPOTIFY_CLIENT_SECRET = .SPOTIFY_CLIENT_SECRET)
 access_token <- get_spotify_access_token()
 ```
 
+## Creating the function for getting the authorization code
+
+```{r}
+get_authorized <- function(.scope) {
+    
+    get_spotify_authorization_code(
+        client_id     = .SPOTIFY_CLIENT_ID,
+        client_secret = .SPOTIFY_CLIENT_SECRET,
+        scope         = .scope
+    )
+}
+```
+
+
 ## Part 1
 
 ### Getting my playlists
@@ -41,12 +55,8 @@ access_token <- get_spotify_access_token()
 ```{r}
 my_playlists <- get_my_playlists(
     limit         = 50,
-    authorization = get_spotify_authorization_code(
-        client_id     = .SPOTIFY_CLIENT_ID,
-        client_secret = .SPOTIFY_CLIENT_SECRET,
-        scope         = "playlist-read-private"
-    )
-) %>% 
+    authorization = get_authorized("playlist-read-private")
+) %>%
     as_tibble()
 
 my_playlists %>% 
@@ -64,11 +74,7 @@ get_categories() %>% pull(name)
 ```{r}
 my_artists <- get_my_top_artists_or_tracks(
     limit = 2,
-    authorization = get_spotify_authorization_code(
-        client_id     = .SPOTIFY_CLIENT_ID,
-        client_secret = .SPOTIFY_CLIENT_SECRET,
-        scope         = "user-top-read"
-    )
+    authorization = get_authorized("user-top-read")
 ) %>% 
     pull(name)
 
@@ -379,6 +385,7 @@ my_artists_track_features %>%
     theme_spotify()
 ```
 
+
 ## Part 2
 
 ### Creating customised recommended Playlists
@@ -390,11 +397,7 @@ my_top_artists <- get_my_top_artists_or_tracks(
     type          = "artists", 
     limit         = 50,            # the maximum
     time_range    = "medium_term", # about 6 months history,
-    authorization = get_spotify_authorization_code(
-        client_id     = .SPOTIFY_CLIENT_ID,
-        client_secret = .SPOTIFY_CLIENT_SECRET,
-        scope         = "user-top-read"
-    )
+    authorization = get_authorized("user-top-read")
 )
 
 my_top_artists %>%
@@ -454,6 +457,7 @@ my_top_artists %>%
     theme_spotify()
 ```
 
+
 ## Part 3
 
 ### Creating a playlist
@@ -475,11 +479,7 @@ my_happy_and_energetic_songs <- get_recommendations(
     user_id       = .USER_ID,
     name          = str_glue("My Happy and Energetic Songs ({today()})"),
     description   = "Generated with R!",
-    authorization = get_spotify_authorization_code(
-        client_id     = .SPOTIFY_CLIENT_ID,
-        client_secret = .SPOTIFY_CLIENT_SECRET,
-        scope         = "playlist-modify-public"
-    )
+    authorization = get_authorized("playlist-modify-public")
 )$id
 ```
 
@@ -489,10 +489,6 @@ my_happy_and_energetic_songs <- get_recommendations(
 add_tracks_to_playlist(
   playlist_id   = .playlist_id,
   uris          = my_happy_and_energetic_songs$id,
-  authorization = get_spotify_authorization_code(
-        client_id     = .SPOTIFY_CLIENT_ID,
-        client_secret = .SPOTIFY_CLIENT_SECRET,
-        scope         = "playlist-modify-public"
-  )
+  authorization = get_authorized("playlist-modify-public")
 )
 ```
