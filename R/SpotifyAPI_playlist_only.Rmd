@@ -1,0 +1,96 @@
+---
+title: "SpotifyAPI (from SpotifyR Workshop at R User Group Finland)"
+author: "Marc Eixarch (orig.), modified by Antti Rask"
+date: "2023-03-30"
+output: html_document
+---
+
+Testing the Spotify API using the [{spotifyr}](https://github.com/charlie86/spotifyr) package created by Charlie Thompson and currently maintained by Daniel Antal.
+
+EDIT: This version only includes the part that creates a new Spotify playlist.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load libraries
+
+```{r, warning=FALSE}
+library(conflicted)
+library(spotifyr)
+library(tidyverse)
+
+source("secret.R")
+```
+
+## Getting the SpotifyAPI Access Token
+
+```{r}
+Sys.setenv(SPOTIFY_CLIENT_ID     = .SPOTIFY_CLIENT_ID)
+Sys.setenv(SPOTIFY_CLIENT_SECRET = .SPOTIFY_CLIENT_SECRET)
+
+access_token <- get_spotify_access_token()
+```
+
+## Creating the function for getting the authorization code
+
+```{r}
+get_authorized <- function(.scope) {
+    
+    get_spotify_authorization_code(
+        client_id     = .SPOTIFY_CLIENT_ID,
+        client_secret = .SPOTIFY_CLIENT_SECRET,
+        scope         = .scope
+    )
+}
+```
+
+## Creating customised recommended Playlists
+
+### Finding out my top artists
+
+```{r}
+my_top_artists <- get_my_top_artists_or_tracks(
+    type          = "artists", 
+    limit         = 50,            # the maximum
+    time_range    = "medium_term", # about 6 months history,
+    authorization = get_authorized("user-top-read")
+)
+
+my_top_artists %>%
+    select(name, genres, popularity) %>% 
+    arrange(desc(popularity))
+```
+
+## Creating a playlist
+
+### Get recommendations based on the chosen attributes and artists
+
+```{r}
+my_happy_and_energetic_songs <- get_recommendations(
+    seed_artists = head(my_top_artists, 5) %>% pull(id),
+    min_energy   = 0.6,
+    min_valence  = 0.6
+)
+```
+
+### Create an empty playlist
+
+```{r}
+.playlist_id <- create_playlist(
+    user_id       = .USER_ID,
+    name          = str_glue("My Happy and Energetic Songs ({today()})"),
+    description   = "Generated with R!",
+    authorization = get_authorized("playlist-modify-public")
+)$id
+```
+
+### Populate the created playlist
+
+```{r}
+add_tracks_to_playlist(
+  playlist_id   = .playlist_id,
+  uris          = my_happy_and_energetic_songs$id,
+  authorization = get_authorized("playlist-modify-public")
+)
+```

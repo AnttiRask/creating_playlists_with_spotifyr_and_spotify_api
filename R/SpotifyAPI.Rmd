@@ -73,9 +73,10 @@ get_categories() %>% pull(name)
 
 ```{r}
 my_artists <- get_my_top_artists_or_tracks(
-    limit = 2,
+    limit = 20,
     authorization = get_authorized("user-top-read")
-) %>% 
+) %>%
+    slice_sample(n = 2) %>%
     pull(name)
 
 my_artists
@@ -84,13 +85,12 @@ my_artists
 ### Getting the audio features for the top artists
 
 ```{r}
-my_artists_track_features <- bind_rows(
-    map(
+my_artists_track_features <- map(
         my_artists,
         get_artist_audio_features,
         market = "US"
-    )
-) %>% 
+    ) %>%
+    bind_rows() %>% 
     select(
         artist_id,
         artist_name,
@@ -163,10 +163,18 @@ my_album_summary_stats_without_live %>%
 
 ```{r}
 my_artists_track_features_without_special <-my_artists_track_features_without_live %>%
-    filter(str_detect(tolower(album_name), "edition") == FALSE)
+    filter(
+        str_detect(tolower(album_name), "deluxe") == FALSE,
+        str_detect(tolower(album_name), "edition") == FALSE,
+        str_detect(tolower(album_name), "version") == FALSE
+        )
 
 my_album_summary_stats_without_special <- my_album_summary_stats_without_live %>%
-    filter(str_detect(tolower(album_name), "edition") == FALSE)
+    filter(
+        str_detect(tolower(album_name), "deluxe") == FALSE,
+        str_detect(tolower(album_name), "edition") == FALSE,
+        str_detect(tolower(album_name), "version") == FALSE
+    )
 
 my_artists_track_features_without_special
 my_album_summary_stats_without_special
